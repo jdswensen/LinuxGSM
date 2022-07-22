@@ -84,7 +84,7 @@ elif [ "${shortname}" == "mc" ]; then
 	update_minecraft.sh
 elif [ "${shortname}" == "mcb" ]; then
 	update_minecraft_bedrock.sh
-elif [ "${shortname}" == "pmc" ]; then
+elif [ "${shortname}" == "pmc" ]||[ "${shortname}" == "prpr" ]; then
 	install_eula.sh
 	update_papermc.sh
 elif [ "${shortname}" == "wmc" ]; then

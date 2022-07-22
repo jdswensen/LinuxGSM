@@ -11,11 +11,23 @@ local function_selfname="$(basename "$(readlink -f "${BASH_SOURCE[0]}")")"
 
 fn_update_papermc_dl(){
 	# get build info
-	builddata=$(curl -s "https://${remotelocation}/api/v2/projects/${paperproject}/versions/${paperversion}/builds/${remotebuild}" | jq '.downloads' )
-	buildname=$(echo -e "${builddata}" | jq -r '.application.name')
-	buildsha256=$(echo -e "${builddata}" | jq -r '.application.sha256')
 
-	fn_fetch_file "https://${remotelocation}/api/v2/projects/${paperproject}/versions/${paperversion}/builds/${remotebuild}/downloads/${buildname}" "" "" "" "${tmpdir}" "${buildname}" "nochmodx" "norun" "force" "${buildsha256}"
+	if [ "${shortname}" == "prpr" ]; then
+		remotebuildname=""
+		# purpur doesn't include the full app name, but forms it when the download occurs
+		# https://github.com/PurpurMC/papyrus/blob/95af671a2b3ebdd3f1544c49d21af3d6d7bcc2e8/web/builds.go#L93
+		buildname="${paperproject}-${paperversion}-${remotebuild}.jar"
+		buildhash=$(curl -s "${preamble}/${paperversion}/${remotebuild}" | jq '.md5')
+		dl_endpoint="${preamble}/${paperversion}/${remotebuild}/download"
+	else
+		builddata=$(curl -s "${preamble}/versions/${paperversion}/builds/${remotebuild}" | jq '.downloads' )
+		remotebuildname=""
+		buildname=$(echo -e "${builddata}" | jq -r '.application.name')
+		buildhash=$(echo -e "${builddata}" | jq -r '.application.sha256')
+		dl_endpoint="${preamble}/versions/${paperversion}/builds/${remotebuild}/downloads/${buildname}"
+	fi
+
+	fn_fetch_file "${dl_endpoint}" "" "${remotebuildname}" "" "${tmpdir}" "${buildname}" "nochmodx" "norun" "force" "${buildhash}"
 
 	echo -e "copying to ${serverfiles}...\c"
 	cp -f "${tmpdir}/${buildname}" "${serverfiles}/${executable#./}"
@@ -58,7 +70,11 @@ fn_update_papermc_localbuild(){
 
 fn_update_papermc_remotebuild(){
 	# Gets remote build info.
-	remotebuild=$(curl -s "https://${remotelocation}/api/v2/projects/${paperproject}/versions/${paperversion}" | jq -r '.builds[-1]')
+	if [ "${shortname}" == "prpr" ]; then
+		remotebuild=$(curl -s "${preamble}/${paperversion}/latest" | jq -r '.builds')
+	else
+		remotebuild=$(curl -s "${preamble}/versions/${paperversion}" | jq -r '.builds[-1]')
+	fi
 
 	# Checks if remotebuild variable has been set.
 	if [ -z "${remotebuild}" ]||[ "${remotebuild}" == "null" ]; then
@@ -117,14 +133,25 @@ fn_update_papermc_compare(){
 	fi
 }
 
-# The location where the builds are checked and downloaded.
-remotelocation="papermc.io"
+# Set up project specific strings for checks and downloads.
+if [ "${shortname}" == "pmc" ]||[ "${shortname}" == "wmc" ]; then
+	remotelocation="papermc.io"
+	
+	if [ "${shortname}" == "pmc" ]; then
+		paperproject="paper"
+	else
+		paperproject="waterfall"
+	fi
 
-if [ "${shortname}" == "pmc" ]; then
-	paperproject="paper"
-elif [ "${shortname}" == "wmc" ]; then
-	paperproject="waterfall"
+	project="projects/${paperproject}"
+
+elif [ "${shortname}" == "prpr" ]; then
+	remotelocation="purpurmc.org"
+	paperproject="purpur"
+	project="${paperproject}"
 fi
+
+preamble="https://api.${remotelocation}/v2/${project}"
 
 localversionfile="${datadir}/${paperproject}-version"
 
@@ -135,10 +162,10 @@ fi
 
 # check version if the user did set one and check it
 if [ "${mcversion}" == "latest" ]; then
-	paperversion=$(curl -s "https://${remotelocation}/api/v2/projects/${paperproject}" | jq -r '.versions[-1]')
+	paperversion=$(curl -s "${preamble}" | jq -r '.versions[-1]')
 else
 	# check if version there for the download from the api
-	paperversion=$(curl -s "https://${remotelocation}/api/v2/projects/${paperproject}" | jq -r -e --arg mcversion "${mcversion}" '.versions[]|select(. == $mcversion)')
+	paperversion=$(curl -s "${preamble}" | jq -r -e --arg mcversion "${mcversion}" '.versions[]|select(. == $mcversion)')
 	if [ -z "${paperversion}" ]; then
 		# user passed version does not exist
 		fn_print_error_nl "Version ${mcversion} not available from ${remotelocation}"
