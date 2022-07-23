@@ -17,7 +17,8 @@ fn_update_papermc_dl(){
 		# purpur doesn't include the full app name, but forms it when the download occurs
 		# https://github.com/PurpurMC/papyrus/blob/95af671a2b3ebdd3f1544c49d21af3d6d7bcc2e8/web/builds.go#L93
 		buildname="${paperproject}-${paperversion}-${remotebuild}.jar"
-		buildhash=$(curl -s "${preamble}/${paperversion}/${remotebuild}" | jq '.md5')
+		sleep 5 # API cooldown: the purpur dl server is a bit flakey with quick reads from this specific API
+		buildhash=$(curl -s "${preamble}/${paperversion}/${remotebuild}" | jq -r '.md5')
 		dl_endpoint="${preamble}/${paperversion}/${remotebuild}/download"
 	else
 		builddata=$(curl -s "${preamble}/versions/${paperversion}/builds/${remotebuild}" | jq '.downloads' )
@@ -71,7 +72,7 @@ fn_update_papermc_localbuild(){
 fn_update_papermc_remotebuild(){
 	# Gets remote build info.
 	if [ "${shortname}" == "prpr" ]; then
-		remotebuild=$(curl -s "${preamble}/${paperversion}/latest" | jq -r '.builds')
+		remotebuild=$(curl -s "${preamble}/${paperversion}/latest" | jq -r '.build')
 	else
 		remotebuild=$(curl -s "${preamble}/versions/${paperversion}" | jq -r '.builds[-1]')
 	fi
